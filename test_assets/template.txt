@@ -1,0 +1,9 @@
+This is a template. It can be html, xml, json, or any kind of text file.
+
+{{ template "t1.txt" }}
+
+{{ "one" }}
+
+{{ template "t2.txt" }}
+
+This is the end.
