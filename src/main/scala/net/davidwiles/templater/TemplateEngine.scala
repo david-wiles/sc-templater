@@ -2,6 +2,8 @@ package net.davidwiles.templater
 
 import net.davidwiles.templater.ImplicitConversions._
 
+import scala.jdk.CollectionConverters._
+
 import java.io.{File, FileOutputStream, OutputStream}
 import java.nio.file.{Files, Paths}
 import scala.annotation.tailrec
@@ -117,13 +119,14 @@ object TemplateEngine {
             case Success(true) =>
               val walkStream = Files.walk(Paths.get(vd))
 
-              walkStream.forEach { path =>
-                if (Files.isRegularFile(path)) {
+              // Add each .vars file to the variables map
+              walkStream.iterator().asScala
+                .filter(p => Files.isRegularFile(p) && p.getFileName.toString.endsWith(".vars"))
+                .foreach { path =>
                   val filename = path.getFileName.toString
                   val ns = filename.substring(0, filename.lastIndexOf('.'))
                   variables.addFromFile(path.toString, ns)
                 }
-              }
 
               walkStream.close()
               parseMore(tail)
