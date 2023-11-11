@@ -50,6 +50,27 @@ class TemplateEngineSpec extends AnyFlatSpec with should.Matchers with BeforeAnd
     assert(readTemplate("test_assets/output.txt").equals(readTemplate("test_assets/reference.txt")))
   }
 
+  it should "write output that matches a reference when using env vars" in {
+    TemplateEngine.parse(List("-e", "one.one=1", "-e", "two.two=2", "-e", "three=3", "-of", "test_assets/output.txt", "test_assets/template.txt")).get
+      .execute()
+
+    assert(readTemplate("test_assets/output.txt").equals(readTemplate("test_assets/reference.txt")))
+  }
+
+  it should "write output that matches a reference when using both env vars and var files" in {
+    TemplateEngine.parse(List("-e", "one.one=1", "-e", "two.two=2", "-vf", "test_assets/vars.txt", "-of", "test_assets/output.txt", "test_assets/template.txt")).get
+      .execute()
+
+    assert(readTemplate("test_assets/output.txt").equals(readTemplate("test_assets/reference.txt")))
+  }
+
+  it should "write output that matches a reference with a var dir" in {
+    TemplateEngine.parse(List("-vd", "test_assets/var_dir", "-of", "test_assets/output.txt", "test_assets/template.txt")).get
+      .execute()
+
+    assert(readTemplate("test_assets/output.txt").equals(readTemplate("test_assets/reference.txt")))
+  }
+
   override def afterAll(): Unit = {
     Files.delete(Paths.get("test_assets/output.txt"))
   }

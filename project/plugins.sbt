@@ -1,2 +1,1 @@
-addSbtPlugin("org.jetbrains.scala" % "sbt-ide-settings" % "1.1.1")
-addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.4.5")
+addSbtPlugin("net.davidwiles" % "sbt-installer" % "0.1.2")

@@ -1,6 +1,8 @@
 package net.davidwiles.templater
 
 import java.nio.file.{Files, Paths}
+import scala.collection.mutable
+import scala.io.Source
 import scala.language.implicitConversions
 import scala.jdk.CollectionConverters._
 
@@ -38,6 +40,36 @@ object ImplicitConversions {
       }.getOrElse(text)
     }
   }
+
+  class Variables(variables: mutable.Map[String, String]) {
+    type KVPair = Tuple2[String, String]
+
+    def addFromFile(filename: String, namespace: String = ""): Unit = {
+      val source = Source.fromFile(filename)
+      variables.addAll {
+        source.getLines().flatMap { line =>
+          parseKVPair(line, namespace) match {
+            case Left(err) =>
+              println(err)
+              None
+            case Right(value) => Some(value)
+          }
+        }
+      }
+      source.close()
+    }
+
+    private def parseKVPair(text: String, ns: String = ""): Either[String, KVPair] = {
+      val namespace = if (ns == "" || ns.endsWith(".")) ns else s"$ns."
+      text.split('=').toList match {
+        case key :: value :: Nil => Right((s"$namespace$key", value))
+        case _ => Left(s"Invalid key value pair provided: $text")
+      }
+    }
+  }
+
+  implicit def mapToVariables(variables: mutable.Map[String, String]): Variables =
+    new Variables(variables)
 
   implicit def stringToTextWithSubstitution(text: String): TextWithSubstitution =
     new TextWithSubstitution(text)

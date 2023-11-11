@@ -1,11 +1,13 @@
 package net.davidwiles.templater
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 object Main {
   def main(args: Array[String]): Unit = {
-    Try(TemplateEngine.start(args.toList)).recover {
-      case ex: Exception => println(s"Fatal error: ${ex.getMessage}")
+    Try(TemplateEngine.parse(args.toList)) match {
+      case Success(Some(engine)) => engine.execute()
+      case Failure(exception) => println(exception.getMessage)
+      case _ => // Do nothing
     }
   }
 }

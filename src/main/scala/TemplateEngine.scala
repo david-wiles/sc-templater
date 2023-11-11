@@ -1,19 +1,17 @@
 package net.davidwiles.templater
 
-import net.davidwiles.commands._
 import net.davidwiles.templater.ImplicitConversions._
 
 import java.io.{File, FileOutputStream, OutputStream}
 import java.nio.file.{Files, Paths}
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
-class TemplateEngine(template: String, output: OutputStream = System.out, variables: Map[String, String] = Map()) extends Command {
+class TemplateEngine(template: String, output: OutputStream = System.out, variables: Map[String, String] = Map()) {
   private val base: String = Paths.get(template).getParent.toString
 
-  override def execute(): Unit = {
+  def execute(): Unit = {
     output.write {
       readTemplate(template)
         .replaceTemplates(base)
@@ -23,7 +21,7 @@ class TemplateEngine(template: String, output: OutputStream = System.out, variab
   }
 }
 
-object TemplateEngine extends CommandParser {
+object TemplateEngine {
 
   type KVPair = Tuple2[String, String]
 
@@ -43,9 +41,9 @@ object TemplateEngine extends CommandParser {
       |not found, it will be replaced with an empty string.
       |""".stripMargin
 
-  override val commandName: String = "templater"
+  val commandName: String = "tmpl"
 
-  override val usage: String =
+  val usage: String =
     s"""
        |Usage: $commandName [OPTIONS] TEMPLATE
        |
@@ -65,18 +63,22 @@ object TemplateEngine extends CommandParser {
        |  -vf, --var-file  Use the variables specified in the given file. All
        |                   variables should be given in the format of
        |                   'key=value' separated by newlines.
+       |  -vd, --var-dir   Use all variables specified in the given directory.
+       |                   All varfiles present in the directory will be used
+       |                   with each variable in the file namespaced by the
+       |                   file's name.
        |
        |Arguments:
        |  TEMPLATE  The entrypoint template file. This can be any text file
        |            using the format specified by --explain
        |""".stripMargin
 
-  override def parse(args: List[String]): Option[Command] = {
+  def parse(args: List[String]): Option[TemplateEngine] = {
     var outStream: OutputStream = System.out
     val variables: mutable.Map[String, String] = mutable.Map.empty[String, String]
 
     @tailrec
-    def parseMore(list: List[String]): Option[Command] = {
+    def parseMore(list: List[String]): Option[TemplateEngine] = {
       list match {
         case ("-h" | "--help") :: tail => printUsage()
         case "--explain" :: tail => printUsage(spec)
@@ -102,19 +104,28 @@ object TemplateEngine extends CommandParser {
             case Failure(exception) => printUsage(exception.getMessage)
             case Success(false) => printUsage("The variable file must correspond to a valid filename")
             case Success(true) =>
-              val source = Source.fromFile(vf)
-              variables.addAll {
-                source.getLines().flatMap { line =>
-                  parseKVPair(line) match {
-                    case Left(err) =>
-                      println(err)
-                      None
-                    case Right(value) => Some(value)
-                  }
+              variables.addFromFile(vf)
+              parseMore(tail)
+          }
+        case ("-vd" | "--var-dir") :: vd :: tail =>
+          Try {
+            val p = Paths.get(vd)
+            Files.exists(p) && Files.isDirectory(p)
+          } match {
+            case Failure(exception) => printUsage(exception.getMessage)
+            case Success(false) => printUsage("The variable directory must correspond to a valid directory")
+            case Success(true) =>
+              val walkStream = Files.walk(Paths.get(vd))
+
+              walkStream.forEach { path =>
+                if (Files.isRegularFile(path)) {
+                  val filename = path.getFileName.toString
+                  val ns = filename.substring(0, filename.lastIndexOf('.'))
+                  variables.addFromFile(path.toString, ns)
                 }
               }
-              source.close()
 
+              walkStream.close()
               parseMore(tail)
           }
         case template :: Nil =>
@@ -133,14 +144,20 @@ object TemplateEngine extends CommandParser {
     parseMore(args)
   }
 
-  override def parse(args: List[String], persistentArgs: Map[String, Any]): Option[Command] = parse(args)
+  def parse(args: List[String], persistentArgs: Map[String, Any]): Option[TemplateEngine] = parse(args)
 
   def apply(template: String, output: OutputStream, variables: Map[String, String]) =
     new TemplateEngine(template, output, variables)
 
-  private def parseKVPair(text: String): Either[String, KVPair] = {
+  private def printUsage(msg: String = ""): Option[TemplateEngine] = {
+    if (msg != "") println(msg) else println(usage)
+    None
+  }
+
+  private def parseKVPair(text: String, ns: String = ""): Either[String, KVPair] = {
+    val namespace = if (ns == "" || ns.endsWith(".")) ns else s"$ns."
     text.split('=').toList match {
-      case key :: value :: Nil => Right((key, value))
+      case key :: value :: Nil => Right((s"$namespace$key", value))
       case _ => Left(s"Invalid key value pair provided: $text")
     }
   }
